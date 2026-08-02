@@ -2,6 +2,7 @@ package transformations
 
 import "errors"
 
+// TransformationFactory creates transformation instances by name
 type TransformationFactory struct{}
 
 func (f *TransformationFactory) Create(name string) (Transformation, error) {
@@ -23,6 +24,6 @@ func (f *TransformationFactory) Create(name string) (Transformation, error) {
 	case "InvertAllow":
 		return &InvertAllow{}, nil
 	default:
-		return nil, errors.New("unknown transformation")
+		return nil, errors.New("unknown transformation: " + name)
 	}
 }

@@ -15,7 +15,7 @@ func TestCompress(t *testing.T) {
 			name: "trim whitespace",
 			input: `  example.com
    malicious.com
-tracking.com
+   tracking.com
 `,
 			expected: `example.com
 malicious.com
