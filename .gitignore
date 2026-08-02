@@ -30,7 +30,11 @@ go.work.sum
 .vscode/
 .zed/
 
+# builds and build output
 blc
 main
+[Bb]uild/
+[Rr]elease/
 
 config.json
+output.txt
