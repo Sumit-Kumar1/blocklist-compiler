@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/signal"
 
-	"bcl/internal"
+	"blc/internal"
 )
 
 func main() {

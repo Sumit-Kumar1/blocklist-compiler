@@ -6,12 +6,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"blc/internal/config"
+	"blc/internal/models"
+	"blc/internal/processor"
 )
 
 func Run(ctx context.Context) error {
-	var bc blocklistConfig
+	var bc models.BlocklistConfig
+	var processor = processor.NewBlocklistProcessor()
 
-	cfg := loadConfig()
+	cfg := config.LoadConfig()
 
 	ff := filepath.Join(cfg.Config.Path, cfg.Config.Name)
 
@@ -28,13 +33,13 @@ func Run(ctx context.Context) error {
 		return err
 	}
 
-	if err := bc.validate(); err != nil {
+	if err := bc.Validate(); err != nil {
 		return err
 	}
 
-	if err := bc.process(); err != nil {
+	if err := bc.Process(); err != nil {
 		return err
 	}
 
-	return nil
+	return processor.ProcessAll(&bc)
 }

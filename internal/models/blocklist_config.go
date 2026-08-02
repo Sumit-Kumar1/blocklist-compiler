@@ -1,19 +1,20 @@
-package internal
+package models
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 )
 
-type blocklistConfig struct {
+type BlocklistConfig struct {
 	Name            string      `json:"name"`
 	Description     string      `json:"description"`
-	Blocklists      []blocklist `json:"sources"`
+	Blocklists      []Blocklist `json:"sources"`
 	Transformations []string    `json:"transformations"`
 	Exclusions      []string    `json:"exclusions"`
 }
 
-func (c blocklistConfig) validate() error {
+func (c BlocklistConfig) Validate() error {
 	if strings.TrimSpace(c.Name) == "" {
 		return errors.New("missing name in blocklist config")
 	}
@@ -35,6 +36,14 @@ func (c blocklistConfig) validate() error {
 	return nil
 }
 
-func (c blocklistConfig) process() error {
+// processBlocklists fetches each blocklists using blocklist.Process
+func (c *BlocklistConfig) Process() error {
+
+	for _, blocklist := range c.Blocklists {
+		if err := blocklist.process(); err != nil {
+			return fmt.Errorf("error while processing blocklist: %s, source: %s", blocklist.Name, blocklist.Source)
+		}
+	}
+
 	return nil
 }

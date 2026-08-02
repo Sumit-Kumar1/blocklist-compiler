@@ -1,4 +1,4 @@
-package internal
+package config
 
 import (
 	"os"
@@ -15,7 +15,7 @@ type config struct {
 	}
 }
 
-func loadConfig() *config {
+func LoadConfig() *config {
 	var cfg config
 
 	_ = godotenv.Load(".env")
