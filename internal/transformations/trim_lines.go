@@ -1,43 +1,18 @@
 package transformations
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"errors"
 	"strings"
 )
 
-// TrimLines trims whitespace from each line but preserves internal spacing
+// TrimLines removes leading and trailing whitespace, mirroring
+// @adguard/hostlist-compiler. Emptied lines are left for RemoveEmptyLines.
 type TrimLines struct{}
 
 func (t TrimLines) Apply(ctx context.Context, data []byte) ([]byte, error) {
-	var buf strings.Builder
-
-	if ctx.Err() != nil {
-		return nil, errors.New("removeComments: context cancelled")
-	}
-
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		if ctx.Err() != nil {
-			return nil, errors.New("removeComments: context cancelled")
-		}
-
-		line := scanner.Text()
-		// Trim leading/trailing whitespace but preserve internal spacing
-		trimmed := strings.TrimSpace(line)
-		if trimmed != "" {
-			buf.WriteString(trimmed)
-			buf.WriteByte('\n')
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	return []byte(buf.String()), nil
+	return mapLines(ctx, t.Name(), data, func(line string) (string, bool) {
+		return strings.TrimSpace(line), true
+	})
 }
 
 func (t TrimLines) Name() string {

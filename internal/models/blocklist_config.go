@@ -41,7 +41,7 @@ func (c BlocklistConfig) Validate() error {
 func (c *BlocklistConfig) Process(ctx context.Context) error {
 	for i := range c.Blocklists {
 		if ctx.Err() != nil {
-			return ErrCtxCancalled("process blocklist-config", c.Name)
+			return ErrCtxCancelled("process blocklist-config", c.Name)
 		}
 
 		if err := c.Blocklists[i].fetch(ctx); err != nil {

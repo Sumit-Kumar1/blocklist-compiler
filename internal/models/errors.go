@@ -25,9 +25,16 @@ func ErrInvalid(entity, blocklist string) BlockListError {
 	}
 }
 
-func ErrCtxCancalled(stage, blocklist string) BlockListError {
+func ErrCtxCancelled(stage, blocklist string) BlockListError {
 	return BlockListError{
 		Reason:        "context is cancelled at " + stage,
+		BlocklistName: blocklist,
+	}
+}
+
+func ErrBadStatus(status, blocklist string) BlockListError {
+	return BlockListError{
+		Reason:        "fetch returned status " + status,
 		BlocklistName: blocklist,
 	}
 }

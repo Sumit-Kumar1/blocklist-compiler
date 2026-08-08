@@ -1,44 +1,27 @@
 package transformations
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"errors"
 	"strings"
 )
 
-// InvertAllow converts allowlist entries to blocklist entries
+// InvertAllow converts blocking rules into allow rules, mirroring
+// @adguard/hostlist-compiler. Comments, blank lines, hosts-format entries and
+// rules that already allow are passed through untouched.
 type InvertAllow struct{}
 
 func (i InvertAllow) Apply(ctx context.Context, data []byte) ([]byte, error) {
-	var buf strings.Builder
-
-	if ctx.Err() != nil {
-		return nil, errors.New("invertAllow: context cancelled")
-	}
-
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		if ctx.Err() != nil {
-			return nil, errors.New("invertAllow: context cancelled")
+	return mapLines(ctx, i.Name(), data, func(line string) (string, bool) {
+		if line == "" || isComment(line) || strings.HasPrefix(line, "@@") {
+			return line, true
 		}
 
-		line := scanner.Text()
-		// Convert @@||domain^ to ||domain^
-		if strings.HasPrefix(line, "@@||") && strings.HasSuffix(line, "^") {
-			line = "||" + strings.TrimPrefix(line, "@@||")
+		if _, isHosts := hostsDomains(line); isHosts {
+			return line, true
 		}
 
-		buf.WriteString(line)
-		buf.WriteByte('\n')
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	return []byte(buf.String()), nil
+		return "@@" + line, true
+	})
 }
 
 func (i InvertAllow) Name() string {

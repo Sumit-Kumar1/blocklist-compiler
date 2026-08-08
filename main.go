@@ -5,12 +5,17 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"syscall"
 
 	"blc/internal"
 )
 
 func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	os.Exit(run())
+}
+
+func run() int {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -18,6 +23,9 @@ func main() {
 
 	if err := internal.Run(ctx); err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error in run", slog.String("error", err.Error()))
-		return
+
+		return 1
 	}
+
+	return 0
 }

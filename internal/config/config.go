@@ -2,50 +2,71 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
 
-type config struct {
-	AppName string
-	Config  struct {
-		Name string
-		Path string
-	}
+// Config holds the runtime settings resolved from the environment.
+type Config struct {
+	ConfigName string
+	ConfigPath string
+	// OutputFile is the published list. It is replaced atomically.
+	OutputFile string
+	// MinRules is the sanity floor: a compile producing fewer rules is discarded
+	// and the previously published list is left in place.
+	MinRules int
+	// Interval is the delay between compile cycles. Zero means compile once and exit.
+	Interval time.Duration
+	// ListenAddr serves the published list. Empty disables the server.
+	ListenAddr string
+
+	AGHAPI  string
+	AGHUser string
+	AGHPass string
 }
 
-func LoadConfig() *config {
-	var cfg config
-
+// Load reads .env when present and falls back to defaults for missing keys.
+func Load() *Config {
 	_ = godotenv.Load(".env")
 
-	cfg.AppName = getEnv("APP_NAME", "blocklist-compiler")
-	cfg.Config = struct {
-		Name string
-		Path string
-	}{
-		Name: getEnv("CONFIG_FILE", "config.json"),
-		Path: getEnv("CONFIG_PATH", "./"),
+	return &Config{
+		ConfigName: getEnv("CONFIG_FILE", "config.json"),
+		ConfigPath: getEnv("CONFIG_PATH", "./"),
+		OutputFile: getEnv("OUTPUT_FILE", "output.txt"),
+		MinRules:   getInt("MIN_RULES", 1000),
+		Interval:   getDuration("INTERVAL", 24*time.Hour),
+		ListenAddr: getEnv("LISTEN_ADDR", ""),
+		AGHAPI:     getEnv("AGH_API", ""),
+		AGHUser:    getEnv("AGH_USER", ""),
+		AGHPass:    getEnv("AGH_PASS", ""),
 	}
-
-	return &cfg
 }
 
-func getEnv[T comparable](key string, defaultVal T) T {
-	var (
-		val  string
-		resp T
-	)
+func getEnv(key, defaultVal string) string {
+	if val := strings.TrimSpace(os.Getenv(key)); val != "" {
+		return val
+	}
 
-	if val = strings.TrimSpace(os.Getenv(key)); val == "" {
+	return defaultVal
+}
+
+func getInt(key string, defaultVal int) int {
+	val, err := strconv.Atoi(getEnv(key, ""))
+	if err != nil {
 		return defaultVal
 	}
 
-	resp, ok := any(val).(T)
-	if !ok {
+	return val
+}
+
+func getDuration(key string, defaultVal time.Duration) time.Duration {
+	val, err := time.ParseDuration(getEnv(key, ""))
+	if err != nil {
 		return defaultVal
 	}
 
-	return resp
+	return val
 }
