@@ -1,10 +1,11 @@
 package models
 
 import (
-	"errors"
-	"fmt"
+	"context"
 	"strings"
 )
+
+const blocklistCfg = "blocklist config"
 
 type BlocklistConfig struct {
 	Name            string      `json:"name"`
@@ -16,15 +17,15 @@ type BlocklistConfig struct {
 
 func (c BlocklistConfig) Validate() error {
 	if strings.TrimSpace(c.Name) == "" {
-		return errors.New("missing name in blocklist config")
+		return ErrMissing("name", blocklistCfg)
 	}
 
 	if len(c.Blocklists) == 0 {
-		return errors.New("missing sources in blocklist config")
+		return ErrMissing("sources", blocklistCfg)
 	}
 
 	if len(c.Transformations) == 0 {
-		return errors.New("missing transformations in blocklist config")
+		return ErrMissing("transformations", blocklistCfg)
 	}
 
 	for _, blocklist := range c.Blocklists {
@@ -37,11 +38,14 @@ func (c BlocklistConfig) Validate() error {
 }
 
 // processBlocklists fetches each blocklists using blocklist.Process
-func (c *BlocklistConfig) Process() error {
+func (c *BlocklistConfig) Process(ctx context.Context) error {
+	for i := range c.Blocklists {
+		if ctx.Err() != nil {
+			return ErrCtxCancalled("process blocklist-config", c.Name)
+		}
 
-	for _, blocklist := range c.Blocklists {
-		if err := blocklist.process(); err != nil {
-			return fmt.Errorf("error while processing blocklist: %s, source: %s", blocklist.Name, blocklist.Source)
+		if err := c.Blocklists[i].fetch(ctx); err != nil {
+			return BlockListError{Reason: err.Error(), BlocklistName: c.Blocklists[i].Name}
 		}
 	}
 

@@ -2,6 +2,7 @@ package transformations
 
 import (
 	"bytes"
+	"context"
 	"testing"
 )
 
@@ -69,16 +70,19 @@ example.com
 				pipeline.Add(t)
 			}
 
-			output, err := pipeline.Apply([]byte(tt.input))
+			output, err := pipeline.Apply(context.Background(), []byte(tt.input))
 			if tt.expectError {
 				if err == nil {
 					t.Fatal("Expected error, got nil")
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
+
 			if !bytes.Equal(output, []byte(tt.expected)) {
 				t.Fatalf("Expected %q, got %q", tt.expected, output)
 			}

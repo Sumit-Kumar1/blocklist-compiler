@@ -1,0 +1,35 @@
+version: "2"
+
+run:
+  timeout: 5m
+  concurrency: 4
+  go: "1.26"
+
+linters:
+  enable:
+    - asasalint
+    - asciicheck
+    - containedctx
+    - copyloopvar
+    - cyclop
+    - gocyclo
+    - err113
+    - gocritic
+    - lll
+    - govet
+    - errcheck
+    - ineffassign
+    - staticcheck
+    - unused
+    - wsl_v5
+    - zerologlint
+    - sloglint
+
+issues:
+  max-same-issues: 50
+
+output:
+  sort-order:
+    - linter
+    - severity
+    - file

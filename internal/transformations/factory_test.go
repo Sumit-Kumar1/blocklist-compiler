@@ -22,6 +22,7 @@ func TestTransformationFactory(t *testing.T) {
 	}
 
 	factory := &TransformationFactory{}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			transform, err := factory.Create(tt.input)
@@ -29,11 +30,14 @@ func TestTransformationFactory(t *testing.T) {
 				if err == nil {
 					t.Fatal("Expected error, got nil")
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
+
 			if transform.Name() != tt.input {
 				t.Fatalf("Expected name %q, got %q", tt.input, transform.Name())
 			}

@@ -2,6 +2,7 @@ package transformations
 
 import (
 	"bytes"
+	"context"
 	"testing"
 )
 
@@ -56,12 +57,14 @@ tracking.com
 	}
 
 	transform := &RemoveEmptyLines{}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output, err := transform.Apply([]byte(tt.input))
+			output, err := transform.Apply(context.TODO(), []byte(tt.input))
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
+
 			if !bytes.Equal(output, []byte(tt.expected)) {
 				t.Fatalf("Expected %q, got %q", tt.expected, output)
 			}

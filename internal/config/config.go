@@ -33,8 +33,10 @@ func LoadConfig() *config {
 }
 
 func getEnv[T comparable](key string, defaultVal T) T {
-	var val string
-	var resp T
+	var (
+		val  string
+		resp T
+	)
 
 	if val = strings.TrimSpace(os.Getenv(key)); val == "" {
 		return defaultVal

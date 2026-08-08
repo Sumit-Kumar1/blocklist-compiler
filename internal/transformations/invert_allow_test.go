@@ -2,6 +2,7 @@ package transformations
 
 import (
 	"bytes"
+	"context"
 	"testing"
 )
 
@@ -59,7 +60,7 @@ func TestInvertAllow(t *testing.T) {
 	transform := &InvertAllow{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output, err := transform.Apply([]byte(tt.input))
+			output, err := transform.Apply(context.Background(), []byte(tt.input))
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}

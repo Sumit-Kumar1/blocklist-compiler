@@ -37,9 +37,17 @@ func Run(ctx context.Context) error {
 		return err
 	}
 
-	if err := bc.Process(); err != nil {
+	defer cleanup(bc)
+
+	if err := bc.Process(ctx); err != nil {
 		return err
 	}
 
-	return processor.ProcessAll(&bc)
+	return processor.ProcessAll(ctx, &bc)
+}
+
+func cleanup(bc models.BlocklistConfig) {
+	for i := range bc.Blocklists {
+		_ = os.Remove(bc.Blocklists[i].TempName)
+	}
 }
