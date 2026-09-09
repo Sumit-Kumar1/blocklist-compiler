@@ -15,7 +15,7 @@ type Config struct {
 	ConfigPath string
 	// OutputFile is the published list. It is replaced atomically.
 	OutputFile string
-	// MinRules is the sanity floor: a compile producing fewer rules is discarded
+	// MinRules is the sanity floor: a compiled producing fewer rules is discarded
 	// and the previously published list is left in place.
 	MinRules int
 	// Interval is the delay between compile cycles. Zero means compile once and exit.
@@ -23,9 +23,9 @@ type Config struct {
 	// ListenAddr serves the published list. Empty disables the server.
 	ListenAddr string
 
-	AGHAPI  string
-	AGHUser string
-	AGHPass string
+	AghAPI  string
+	AghUser string
+	AghPass string
 }
 
 // Load reads .env when present and falls back to defaults for missing keys.
@@ -39,9 +39,9 @@ func Load() *Config {
 		MinRules:   getInt("MIN_RULES", 1000),
 		Interval:   getDuration("INTERVAL", 24*time.Hour),
 		ListenAddr: getEnv("LISTEN_ADDR", ""),
-		AGHAPI:     getEnv("AGH_API", ""),
-		AGHUser:    getEnv("AGH_USER", ""),
-		AGHPass:    getEnv("AGH_PASS", ""),
+		AghAPI:     getEnv("AGH_API", ""),
+		AghUser:    getEnv("AGH_USER", ""),
+		AghPass:    getEnv("AGH_PASS", ""),
 	}
 }
 

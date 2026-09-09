@@ -37,7 +37,7 @@ func (c BlocklistConfig) Validate() error {
 	return nil
 }
 
-// processBlocklists fetches each blocklists using blocklist.Process
+// Process fetches each blocklists using blocklist.Process
 func (c *BlocklistConfig) Process(ctx context.Context) error {
 	for i := range c.Blocklists {
 		if ctx.Err() != nil {
