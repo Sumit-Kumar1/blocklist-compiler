@@ -1,6 +1,6 @@
 # The build stage runs natively on the builder and Go cross-compiles to the
 # target architecture, so building an arm64 image needs no QEMU emulation.
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 
 ARG TARGETOS
 ARG TARGETARCH

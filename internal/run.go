@@ -2,7 +2,7 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"log/slog"
 	"os"
@@ -20,7 +20,7 @@ import (
 func Run(ctx context.Context) error {
 	cfg := config.Load()
 
-	agh := server.NewAdGuard(cfg.AGHAPI, cfg.AGHUser, cfg.AGHPass)
+	agh := server.NewAdGuard(cfg.AghAPI, cfg.AghUser, cfg.AghPass)
 
 	if cfg.Interval <= 0 {
 		// One-shot mode: a failed compile is the process's exit status.
