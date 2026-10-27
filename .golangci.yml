@@ -12,7 +12,6 @@ linters:
     - containedctx
     - copyloopvar
     - cyclop
-    - gocyclo
     - err113
     - gocritic
     - lll
@@ -22,8 +21,12 @@ linters:
     - staticcheck
     - unused
     - wsl_v5
-    - zerologlint
     - sloglint
+    - bodyclose
+    - errorlint
+    - gosec
+    - noctx
+    - perfsprint
 
 issues:
   max-same-issues: 50

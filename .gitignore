@@ -38,3 +38,6 @@ main
 
 config.json
 output.txt
+
+# last-good source cache (CACHE_DIR default)
+.cache/
