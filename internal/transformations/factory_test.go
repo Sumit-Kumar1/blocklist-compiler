@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestTransformationFactory(t *testing.T) {
+func TestNew(t *testing.T) {
 	tests := []struct {
 		name        string
 		input       string
@@ -18,14 +18,15 @@ func TestTransformationFactory(t *testing.T) {
 		{"RemoveEmptyLines", "RemoveEmptyLines", false},
 		{"InsertFinalNewLine", "InsertFinalNewLine", false},
 		{"InvertAllow", "InvertAllow", false},
+		{"ValidateAllowIp", "ValidateAllowIp", false},
+		{"RemoveModifiers", "RemoveModifiers", false},
+		{"ConvertToAscii", "ConvertToAscii", false},
 		{"Unknown", "Unknown", true},
 	}
 
-	factory := &TransformationFactory{}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			transform, err := factory.Create(tt.input)
+			transform, err := New(tt.input)
 			if tt.expectError {
 				if err == nil {
 					t.Fatal("Expected error, got nil")

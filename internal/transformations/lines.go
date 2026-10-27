@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"strings"
 )
 
 // maxLineSize bounds a single blocklist line. Public lists occasionally ship
@@ -19,7 +18,9 @@ func mapLines(ctx context.Context, name string, data []byte, fn func(string) (st
 		return nil, cancelled(name)
 	}
 
-	var buf strings.Builder
+	var buf bytes.Buffer
+
+	buf.Grow(len(data))
 
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), maxLineSize)
@@ -42,5 +43,5 @@ func mapLines(ctx context.Context, name string, data []byte, fn func(string) (st
 		return nil, fmt.Errorf("%s: %w", name, err)
 	}
 
-	return []byte(buf.String()), nil
+	return buf.Bytes(), nil
 }

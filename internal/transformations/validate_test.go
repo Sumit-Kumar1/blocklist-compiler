@@ -116,3 +116,31 @@ plain-domain.com
 		})
 	}
 }
+
+func TestValidateAllowIP(t *testing.T) {
+	input := `||1.2.3.4^
+1.2.3.4
+||good.com^
+||com^
+`
+
+	output, err := Validate{AllowIP: true}.Apply(context.Background(), []byte(input))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	expected := "||1.2.3.4^\n1.2.3.4\n||good.com^\n"
+	if !bytes.Equal(output, []byte(expected)) {
+		t.Fatalf("Expected %q, got %q", expected, output)
+	}
+
+	// Plain Validate still drops the IP rules.
+	output, err = Validate{}.Apply(context.Background(), []byte(input))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !bytes.Equal(output, []byte("||good.com^\n")) {
+		t.Fatalf("Expected IP rules dropped, got %q", output)
+	}
+}

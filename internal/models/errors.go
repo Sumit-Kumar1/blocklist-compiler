@@ -1,40 +1,31 @@
 package models
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
+var (
+	// ErrMissing reports a required config field that is empty.
+	ErrMissing = errors.New("missing")
+	// ErrInvalid reports a config field holding an unsupported value.
+	ErrInvalid = errors.New("invalid")
+	// ErrBadStatus reports a fetch answered with an unexpected HTTP status.
+	ErrBadStatus = errors.New("fetch returned status")
+	// ErrTooLarge reports a source body over the configured size limit.
+	ErrTooLarge = errors.New("source too large")
+)
+
+// BlockListError ties a failure to the blocklist it happened in.
 type BlockListError struct {
-	Reason        string
 	BlocklistName string
+	Err           error
 }
 
 func (e BlockListError) Error() string {
-	return e.Reason
+	return fmt.Sprintf("blocklist %q: %v", e.BlocklistName, e.Err)
 }
 
-func ErrMissing(entity, blocklist string) BlockListError {
-	return BlockListError{
-		Reason:        fmt.Sprintf("missing %s from blocklist %s", entity, blocklist),
-		BlocklistName: blocklist,
-	}
-}
-
-func ErrInvalid(entity, blocklist string) BlockListError {
-	return BlockListError{
-		Reason:        fmt.Sprintf("invalid %s entity in blocklist %s", entity, blocklist),
-		BlocklistName: blocklist,
-	}
-}
-
-func ErrCtxCancelled(stage, blocklist string) BlockListError {
-	return BlockListError{
-		Reason:        "context is cancelled at " + stage,
-		BlocklistName: blocklist,
-	}
-}
-
-func ErrBadStatus(status, blocklist string) BlockListError {
-	return BlockListError{
-		Reason:        "fetch returned status " + status,
-		BlocklistName: blocklist,
-	}
+func (e BlockListError) Unwrap() error {
+	return e.Err
 }

@@ -1,13 +1,12 @@
 package main
 
 import (
+	"blc/internal"
 	"context"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
-
-	"blc/internal"
 )
 
 func main() {
@@ -15,10 +14,16 @@ func main() {
 }
 
 func run() int {
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGABRT, syscall.SIGKILL)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer cancel()
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	// LOG_LEVEL accepts debug, info, warn or error; anything else means info.
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(os.Getenv("LOG_LEVEL"))); err != nil {
+		level = slog.LevelInfo
+	}
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 	slog.SetDefault(logger)
 
 	if err := internal.Run(ctx); err != nil {

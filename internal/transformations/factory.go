@@ -7,6 +7,9 @@ var constructors = map[string]func() Transformation{
 	"RemoveComments":     func() Transformation { return &RemoveComments{} },
 	"Deduplicate":        func() Transformation { return &Deduplicate{} },
 	"Validate":           func() Transformation { return &Validate{} },
+	"ValidateAllowIp":    func() Transformation { return &Validate{AllowIP: true} },
+	"RemoveModifiers":    func() Transformation { return &RemoveModifiers{} },
+	"ConvertToAscii":     func() Transformation { return &ConvertToASCII{} },
 	"Compress":           func() Transformation { return &Compress{} },
 	"TrimLines":          func() Transformation { return &TrimLines{} },
 	"RemoveEmptyLines":   func() Transformation { return &RemoveEmptyLines{} },
@@ -14,10 +17,8 @@ var constructors = map[string]func() Transformation{
 	"InvertAllow":        func() Transformation { return &InvertAllow{} },
 }
 
-// TransformationFactory creates transformation instances by name
-type TransformationFactory struct{}
-
-func (f *TransformationFactory) Create(name string) (Transformation, error) {
+// New creates the transformation registered under name.
+func New(name string) (Transformation, error) {
 	newTransformation, ok := constructors[name]
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrUnknownTransformation, name)

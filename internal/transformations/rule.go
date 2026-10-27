@@ -139,7 +139,18 @@ func isIPLiteral(line string) bool {
 	return err == nil
 }
 
-// coversSubdomain reports whether parent is a proper DNS ancestor of domain.
-func coversSubdomain(parent, domain string) bool {
-	return len(domain) > len(parent) && strings.HasSuffix(domain, "."+parent)
+// cutModifiers splits a rule at the "$" opening its modifier list. A /regex/
+// rule may contain "$" itself, so there only a "$" right after the closing
+// slash counts.
+func cutModifiers(line string) (pattern, modifiers string, found bool) {
+	if strings.HasPrefix(line, "/") {
+		i := strings.LastIndex(line, "/$")
+		if i <= 0 {
+			return line, "", false
+		}
+
+		return line[:i+1], line[i+2:], true
+	}
+
+	return strings.Cut(line, "$")
 }

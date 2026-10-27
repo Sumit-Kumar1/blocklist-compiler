@@ -14,14 +14,27 @@ import (
 //   - "/regex/"          — regular expression search
 //   - "pattern*with*star" — wildcard, matching the whole rule
 //   - "plainstring"       — substring containment
+//
+// Built by NewInclusionFilter it works the other way round, keeping only the
+// rules that match.
 type ExclusionFilter struct {
 	substrings []string
 	patterns   []*regexp.Regexp
+	include    bool
 }
 
 // NewExclusionFilter compiles patterns. Blank entries and "!" comments are ignored.
 func NewExclusionFilter(patterns []string) (*ExclusionFilter, error) {
-	filter := &ExclusionFilter{}
+	return newFilter(patterns, false)
+}
+
+// NewInclusionFilter compiles patterns into a filter that keeps only matching rules.
+func NewInclusionFilter(patterns []string) (*ExclusionFilter, error) {
+	return newFilter(patterns, true)
+}
+
+func newFilter(patterns []string, include bool) (*ExclusionFilter, error) {
+	filter := &ExclusionFilter{include: include}
 
 	for _, pattern := range patterns {
 		pattern = strings.TrimSpace(pattern)
@@ -84,13 +97,13 @@ func compileExclusion(pattern string) (*regexp.Regexp, error) {
 	return compiled, nil
 }
 
-// Empty reports whether the filter would drop nothing.
+// Empty reports whether the filter has no patterns, and so changes nothing.
 func (f *ExclusionFilter) Empty() bool {
 	return len(f.substrings) == 0 && len(f.patterns) == 0
 }
 
-// Excludes reports whether a rule matches any configured pattern.
-func (f *ExclusionFilter) Excludes(rule string) bool {
+// Matches reports whether a rule matches any configured pattern.
+func (f *ExclusionFilter) Matches(rule string) bool {
 	for _, substring := range f.substrings {
 		if strings.Contains(rule, substring) {
 			return true
@@ -106,7 +119,8 @@ func (f *ExclusionFilter) Excludes(rule string) bool {
 	return false
 }
 
-// Apply drops every excluded rule, leaving comments and blank lines in place.
+// Apply drops every excluded rule, or every rule not included, leaving
+// comments and blank lines in place.
 func (f *ExclusionFilter) Apply(ctx context.Context, data []byte) ([]byte, error) {
 	if f.Empty() {
 		return data, nil
@@ -117,10 +131,14 @@ func (f *ExclusionFilter) Apply(ctx context.Context, data []byte) ([]byte, error
 			return line, true
 		}
 
-		return line, !f.Excludes(line)
+		return line, f.Matches(line) == f.include
 	})
 }
 
 func (f *ExclusionFilter) Name() string {
+	if f.include {
+		return "Inclusions"
+	}
+
 	return "Exclusions"
 }

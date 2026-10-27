@@ -21,8 +21,11 @@ var limitingModifiers = []string{"denyallow", "client", "ctag", "badfilter"}
 // TLD-wide blocks, IP-address rules, cosmetic rules, dotless hosts and rules
 // carrying modifiers a DNS filter cannot honour.
 //
-// It mirrors @adguard/hostlist-compiler's Validate transformation.
-type Validate struct{}
+// It mirrors @adguard/hostlist-compiler's Validate transformation, and with
+// AllowIP set its ValidateAllowIp, which keeps IP-address rules.
+type Validate struct {
+	AllowIP bool
+}
 
 func (v Validate) Apply(ctx context.Context, data []byte) ([]byte, error) {
 	return mapLines(ctx, v.Name(), data, func(line string) (string, bool) {
@@ -35,12 +38,12 @@ func (v Validate) Apply(ctx context.Context, data []byte) ([]byte, error) {
 			return line, true
 		}
 
-		return line, isSafeRule(line)
+		return line, v.isSafeRule(line)
 	})
 }
 
 // isSafeRule reports whether a single non-hosts line may stay in the list.
-func isSafeRule(line string) bool {
+func (v Validate) isSafeRule(line string) bool {
 	if isCosmetic(line) {
 		return false
 	}
@@ -55,14 +58,14 @@ func isSafeRule(line string) bool {
 		return false
 	}
 
-	return isSafeHost(strings.TrimPrefix(pattern, "@@"), modifiers)
+	return v.isSafeHost(strings.TrimPrefix(pattern, "@@"), modifiers)
 }
 
 // isSafeHost validates the host a rule pattern targets, if it names one at all.
-func isSafeHost(pattern, modifiers string) bool {
-	// A bare IP is too broad however it is written.
+func (v Validate) isSafeHost(pattern, modifiers string) bool {
+	// A bare IP is too broad however it is written, unless IPs are allowed.
 	if isIPLiteral(pattern) {
-		return false
+		return v.AllowIP
 	}
 
 	// Only host-anchored rules carry a host to validate. Substring patterns such
@@ -79,8 +82,12 @@ func isSafeHost(pattern, modifiers string) bool {
 		return true
 	}
 
-	// Bare IPs and dotless hosts are too broad to be useful.
-	if isIPLiteral(host) || !strings.Contains(host, ".") || !isRuleHost(host) {
+	if isIPLiteral(host) {
+		return v.AllowIP
+	}
+
+	// Dotless hosts are too broad to be useful.
+	if !strings.Contains(host, ".") || !isRuleHost(host) {
 		return false
 	}
 
@@ -137,5 +144,9 @@ func hasUnsupportedModifier(modifiers string) bool {
 }
 
 func (v Validate) Name() string {
+	if v.AllowIP {
+		return "ValidateAllowIp"
+	}
+
 	return "Validate"
 }

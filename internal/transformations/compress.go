@@ -30,7 +30,7 @@ func (c Compress) Apply(ctx context.Context, data []byte) ([]byte, error) {
 	}
 
 	var (
-		buf  strings.Builder
+		buf  bytes.Buffer
 		seen = make(map[string]struct{}, len(lines))
 	)
 
@@ -55,7 +55,7 @@ func (c Compress) Apply(ctx context.Context, data []byte) ([]byte, error) {
 		buf.WriteByte('\n')
 	}
 
-	return []byte(buf.String()), nil
+	return buf.Bytes(), nil
 }
 
 // normalize rewrites hosts entries and bare domains as "||domain^" rules and
@@ -112,7 +112,7 @@ func hasBroaderParent(domain string, parents map[string]struct{}) bool {
 		}
 
 		rest = cut
-		if _, ok := parents[rest]; ok && coversSubdomain(rest, domain) {
+		if _, ok := parents[rest]; ok {
 			return true
 		}
 	}

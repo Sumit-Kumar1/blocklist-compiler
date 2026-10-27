@@ -1,7 +1,9 @@
 package config
 
 import (
+	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +24,11 @@ type Config struct {
 	Interval time.Duration
 	// ListenAddr serves the published list. Empty disables the server.
 	ListenAddr string
+	// CacheDir keeps each remote source's last good download, used when a
+	// later fetch of that source fails.
+	CacheDir string
+	// MaxSourceBytes rejects a source whose body is larger than this.
+	MaxSourceBytes int64
 
 	AghAPI  string
 	AghUser string
@@ -32,16 +39,20 @@ type Config struct {
 func Load() *Config {
 	_ = godotenv.Load(".env")
 
+	outputFile := getEnv("OUTPUT_FILE", "output.txt")
+
 	return &Config{
-		ConfigName: getEnv("CONFIG_FILE", "config.json"),
-		ConfigPath: getEnv("CONFIG_PATH", "./"),
-		OutputFile: getEnv("OUTPUT_FILE", "output.txt"),
-		MinRules:   getInt("MIN_RULES", 1000),
-		Interval:   getDuration("INTERVAL", 24*time.Hour),
-		ListenAddr: getEnv("LISTEN_ADDR", ""),
-		AghAPI:     getEnv("AGH_API", ""),
-		AghUser:    getEnv("AGH_USER", ""),
-		AghPass:    getEnv("AGH_PASS", ""),
+		ConfigName:     getEnv("CONFIG_FILE", "config.json"),
+		ConfigPath:     getEnv("CONFIG_PATH", "./"),
+		OutputFile:     outputFile,
+		MinRules:       getInt("MIN_RULES", 1000),
+		Interval:       getDuration("INTERVAL", 24*time.Hour),
+		ListenAddr:     getEnv("LISTEN_ADDR", ""),
+		CacheDir:       getEnv("CACHE_DIR", filepath.Join(filepath.Dir(outputFile), ".cache")),
+		MaxSourceBytes: int64(getInt("MAX_SOURCE_MB", 100)) << 20,
+		AghAPI:         getEnv("AGH_API", ""),
+		AghUser:        getEnv("AGH_USER", ""),
+		AghPass:        getEnv("AGH_PASS", ""),
 	}
 }
 
@@ -54,8 +65,15 @@ func getEnv(key, defaultVal string) string {
 }
 
 func getInt(key string, defaultVal int) int {
-	val, err := strconv.Atoi(getEnv(key, ""))
+	raw := getEnv(key, "")
+	if raw == "" {
+		return defaultVal
+	}
+
+	val, err := strconv.Atoi(raw)
 	if err != nil {
+		warnDefault(key, raw, defaultVal)
+
 		return defaultVal
 	}
 
@@ -63,10 +81,24 @@ func getInt(key string, defaultVal int) int {
 }
 
 func getDuration(key string, defaultVal time.Duration) time.Duration {
-	val, err := time.ParseDuration(getEnv(key, ""))
+	raw := getEnv(key, "")
+	if raw == "" {
+		return defaultVal
+	}
+
+	val, err := time.ParseDuration(raw)
 	if err != nil {
+		warnDefault(key, raw, defaultVal)
+
 		return defaultVal
 	}
 
 	return val
+}
+
+// warnDefault logs a value that failed to parse, so a typo such as INTERVAL=24
+// (no unit) does not silently fall back to the default.
+func warnDefault(key, raw string, defaultVal any) {
+	slog.Warn("ignoring unparsable env value, using default",
+		slog.String("key", key), slog.String("value", raw), slog.Any("default", defaultVal))
 }

@@ -110,3 +110,28 @@ func TestExclusionFilterRejectsBadRegex(t *testing.T) {
 		t.Fatal("Expected an error for an invalid regex, got nil")
 	}
 }
+
+func TestInclusionFilter(t *testing.T) {
+	filter, err := NewInclusionFilter([]string{"keep", "/^\\|\\|x\\./"})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output, err := filter.Apply(context.Background(), []byte("! comment\n||keep.com^\n||drop.com^\n||x.org^\n\n"))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	expected := "! comment\n||keep.com^\n||x.org^\n\n"
+	if !bytes.Equal(output, []byte(expected)) {
+		t.Fatalf("Expected %q, got %q", expected, output)
+	}
+
+	// No patterns means nothing is filtered out.
+	empty, _ := NewInclusionFilter(nil)
+
+	output, _ = empty.Apply(context.Background(), []byte("||a.com^\n"))
+	if string(output) != "||a.com^\n" {
+		t.Fatalf("empty inclusions changed the list: %q", output)
+	}
+}

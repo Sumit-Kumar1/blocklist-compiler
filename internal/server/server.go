@@ -22,11 +22,13 @@ type Server struct {
 	http *http.Server
 }
 
-// New serves the directory holding outputFile, so the list is reachable at
-// http://<addr>/<basename>.
+// New serves outputFile alone at http://<addr>/<basename>. Nothing else in its
+// directory, such as in-progress temp files, is exposed.
 func New(addr, outputFile string) *Server {
 	mux := http.NewServeMux()
-	mux.Handle("/", http.FileServer(http.Dir(filepath.Dir(outputFile))))
+	mux.HandleFunc("GET /"+filepath.Base(outputFile), func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, outputFile)
+	})
 
 	return &Server{
 		http: &http.Server{

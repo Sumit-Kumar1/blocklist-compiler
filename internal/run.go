@@ -3,7 +3,6 @@ package internal
 import (
 	"context"
 	"encoding/json/v2"
-	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -77,9 +76,7 @@ func compile(ctx context.Context, cfg *config.Config, agh *server.AdGuard) error
 		return err
 	}
 
-	defer cleanup(bc)
-
-	if err := bc.Process(ctx); err != nil {
+	if err := bc.Process(ctx, models.FetchOptions{CacheDir: cfg.CacheDir, MaxBytes: cfg.MaxSourceBytes}); err != nil {
 		return err
 	}
 
@@ -124,16 +121,4 @@ func loadBlocklistConfig(cfg *config.Config) (*models.BlocklistConfig, error) {
 	}
 
 	return &bc, nil
-}
-
-func cleanup(bc *models.BlocklistConfig) {
-	for i := range bc.Blocklists {
-		if bc.Blocklists[i].TempName == "" {
-			continue
-		}
-
-		if err := os.Remove(bc.Blocklists[i].TempName); err != nil && !errors.Is(err, os.ErrNotExist) {
-			slog.Warn("removing temp file", "path", bc.Blocklists[i].TempName, "error", err.Error())
-		}
-	}
 }

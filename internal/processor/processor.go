@@ -9,8 +9,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"blc/internal/models"
@@ -20,17 +20,12 @@ import (
 const (
 	outputPerm = 0o644
 	// separator marks the boundary between two source lists in the output
-	separator = "\n! ----\n\n"
+	separatorLine = "! ----"
+	separator     = "\n" + separatorLine + "\n\n"
 )
 
 // ErrTooFewRules reports a compile that fell below the configured sanity floor.
 var ErrTooFewRules = errors.New("compiled list is below the minimum rule count")
-
-type Metrics struct {
-	transformationsTotal atomic.Int64
-	transformationsTime  atomic.Int64
-	blocklistsProcessed  atomic.Int64
-}
 
 // Options configures how a compiled list is published.
 type Options struct {
@@ -41,47 +36,59 @@ type Options struct {
 }
 
 type BlocklistProcessor struct {
-	factory *transformations.TransformationFactory
-	metrics *Metrics
-	opts    Options
+	opts Options
 }
 
 func NewBlocklistProcessor(opts Options) *BlocklistProcessor {
-	return &BlocklistProcessor{
-		factory: &transformations.TransformationFactory{},
-		metrics: &Metrics{},
-		opts:    opts,
-	}
+	return &BlocklistProcessor{opts: opts}
 }
 
-// Process applies a single blocklist's own transformations. Global
+// Process applies a single blocklist's own transformations and filters. Global
 // transformations are deliberately left to ProcessAll, which runs them across
 // the merged list so that cross-source duplicates and redundant subdomains are
 // actually removed.
 func (p *BlocklistProcessor) Process(ctx context.Context, blocklist *models.Blocklist) ([]byte, error) {
-	if ctx.Err() != nil {
-		return nil, models.ErrCtxCancelled("blocklistProcessor", blocklist.Name)
-	}
-
-	// Read the blocklist data from temp file
-	data, err := os.ReadFile(blocklist.TempName)
-	if err != nil {
-		return nil, models.BlockListError{Reason: err.Error(), BlocklistName: blocklist.Name}
-	}
-
-	pipeline, err := p.buildPipeline(blocklist.Transformations)
+	pipeline, err := buildPipeline(blocklist.Transformations)
 	if err != nil {
 		return nil, err
 	}
 
-	return p.applyWithMetrics(ctx, pipeline, data)
+	data, err := apply(ctx, pipeline, blocklist.Data)
+	if err == nil {
+		data, err = applyFilters(ctx, data, blocklist.Filters)
+	}
+
+	if err != nil {
+		return nil, models.BlockListError{BlocklistName: blocklist.Name, Err: err}
+	}
+
+	return data, nil
 }
 
-func (p *BlocklistProcessor) buildPipeline(names []string) (*transformations.TransformationPipeline, error) {
+// applyFilters drops excluded rules, then keeps only included ones.
+func applyFilters(ctx context.Context, data []byte, filters models.Filters) ([]byte, error) {
+	exclusions, err := transformations.NewExclusionFilter(filters.Exclusions)
+	if err != nil {
+		return nil, err
+	}
+
+	inclusions, err := transformations.NewInclusionFilter(filters.Inclusions)
+	if err != nil {
+		return nil, err
+	}
+
+	if data, err = exclusions.Apply(ctx, data); err != nil {
+		return nil, err
+	}
+
+	return inclusions.Apply(ctx, data)
+}
+
+func buildPipeline(names []string) (*transformations.TransformationPipeline, error) {
 	pipeline := &transformations.TransformationPipeline{}
 
 	for _, name := range names {
-		t, err := p.factory.Create(name)
+		t, err := transformations.New(name)
 		if err != nil {
 			return nil, fmt.Errorf("creating transformation %q: %w", name, err)
 		}
@@ -92,9 +99,7 @@ func (p *BlocklistProcessor) buildPipeline(names []string) (*transformations.Tra
 	return pipeline, nil
 }
 
-func (p *BlocklistProcessor) applyWithMetrics(
-	ctx context.Context, pipeline *transformations.TransformationPipeline, data []byte,
-) ([]byte, error) {
+func apply(ctx context.Context, pipeline *transformations.TransformationPipeline, data []byte) ([]byte, error) {
 	start := time.Now()
 
 	data, err := pipeline.Apply(ctx, data)
@@ -102,34 +107,26 @@ func (p *BlocklistProcessor) applyWithMetrics(
 		return nil, err
 	}
 
-	elapsed := time.Since(start)
-
-	p.metrics.transformationsTotal.Add(int64(len(pipeline.Transformations)))
-	p.metrics.transformationsTime.Add(elapsed.Microseconds())
-
 	slog.LogAttrs(ctx, slog.LevelInfo, "transformations applied",
 		slog.Int("count", len(pipeline.Transformations)),
-		slog.Int64("duration_us", elapsed.Microseconds()))
+		slog.Int64("duration_us", time.Since(start).Microseconds()))
 
 	return data, nil
 }
 
-// ProcessAll transforms every blocklist, applies the config's exclusions, and
+// ProcessAll transforms every blocklist, applies the config's filters, and
 // publishes the result only when it clears the rule floor. A failed or
 // undersized compile leaves the previously published list untouched.
 func (p *BlocklistProcessor) ProcessAll(ctx context.Context, config *models.BlocklistConfig) error {
-	exclusions, err := transformations.NewExclusionFilter(config.Exclusions)
-	if err != nil {
-		return err
-	}
+	start := time.Now()
 
 	var combined bytes.Buffer
 
 	for i := range config.Blocklists {
 		blocklist := &config.Blocklists[i]
 
-		if ctx.Err() != nil {
-			return models.ErrCtxCancelled("blocklist transformation processing", blocklist.Name)
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 
 		processedData, err := p.Process(ctx, blocklist)
@@ -145,35 +142,107 @@ func (p *BlocklistProcessor) ProcessAll(ctx context.Context, config *models.Bloc
 
 		combined.Write(processedData)
 
-		p.metrics.blocklistsProcessed.Add(1)
+		// The raw download is no longer needed; let it be collected.
+		blocklist.Data = nil
+
 		slog.InfoContext(ctx, "blocklist processed", "name", blocklist.Name, "index", i)
 	}
 
 	// Global transformations run across the merged list so that duplicates and
 	// redundant subdomains spanning two sources are removed.
-	globalPipeline, err := p.buildPipeline(config.Transformations)
+	globalPipeline, err := buildPipeline(config.Transformations)
 	if err != nil {
 		return err
 	}
 
-	merged, err := p.applyWithMetrics(ctx, globalPipeline, combined.Bytes())
+	merged, err := apply(ctx, globalPipeline, combined.Bytes())
 	if err != nil {
 		return err
 	}
 
-	published, err := exclusions.Apply(ctx, merged)
+	filtered, err := applyFilters(ctx, merged, config.Filters)
 	if err != nil {
 		return err
 	}
 
-	p.logMetrics(ctx)
+	slog.LogAttrs(ctx, slog.LevelInfo, "run metrics",
+		slog.Int("blocklists_processed", len(config.Blocklists)),
+		slog.Int64("duration_us", time.Since(start).Microseconds()))
 
-	return p.publish(ctx, published)
+	return p.publish(ctx, config, dropEmptySections(filtered))
 }
 
-// publish writes data to a temp file alongside the output and renames it into
-// place, so a reader never observes a partially written list.
-func (p *BlocklistProcessor) publish(ctx context.Context, data []byte) error {
+// dropEmptySections removes source separators with no rule after them, as
+// left behind when global deduplication empties a whole source.
+func dropEmptySections(data []byte) []byte {
+	var (
+		out     bytes.Buffer
+		pending [][]byte
+		sep     bool
+		sepAt   int
+		emitted bool
+	)
+
+	out.Grow(len(data))
+
+	for line := range bytes.Lines(data) {
+		switch text := bytes.TrimRight(line, "\r\n"); {
+		case len(text) == 0:
+			pending = append(pending, line)
+		case string(text) == separatorLine && sep:
+			// Back-to-back separators surround an emptied source; keep only the first.
+			pending = pending[:sepAt+1]
+		case string(text) == separatorLine:
+			sepAt, sep = len(pending), true
+			pending = append(pending, line)
+		default:
+			// A separator with nothing before it is dropped too.
+			if !sep || emitted {
+				out.Write(bytes.Join(pending, nil))
+			}
+
+			pending, sep, emitted = pending[:0], false, true
+
+			out.Write(line)
+		}
+	}
+
+	if !sep {
+		out.Write(bytes.Join(pending, nil))
+	}
+
+	return out.Bytes()
+}
+
+// header describes the list the way @adguard/hostlist-compiler does, which is
+// what AdGuard Home reads its display title from.
+func header(config *models.BlocklistConfig, rules int) []byte {
+	var buf bytes.Buffer
+
+	buf.WriteString("!\n")
+
+	for _, field := range [][2]string{
+		{"Title", config.Name},
+		{"Description", config.Description},
+		{"Homepage", config.Homepage},
+		{"License", config.License},
+		{"Version", config.Version},
+		{"Last modified", time.Now().UTC().Format(time.RFC3339)},
+		{"Rule count", strconv.Itoa(rules)},
+	} {
+		if field[1] != "" {
+			fmt.Fprintf(&buf, "! %s: %s\n", field[0], field[1])
+		}
+	}
+
+	buf.WriteString("!\n! Compiled by blocklist-compiler\n!\n")
+
+	return buf.Bytes()
+}
+
+// publish writes the header and data to a temp file alongside the output and
+// renames it into place, so a reader never observes a partially written list.
+func (p *BlocklistProcessor) publish(ctx context.Context, config *models.BlocklistConfig, data []byte) error {
 	rules := countRules(data)
 	if rules < p.opts.MinRules {
 		slog.LogAttrs(ctx, slog.LevelError, "keeping previous list",
@@ -192,7 +261,7 @@ func (p *BlocklistProcessor) publish(ctx context.Context, data []byte) error {
 	tmpName := tmp.Name()
 	defer func() { _ = os.Remove(tmpName) }()
 
-	if _, err := tmp.Write(data); err != nil {
+	if _, err := tmp.Write(append(header(config, rules), data...)); err != nil {
 		_ = tmp.Close()
 
 		return fmt.Errorf("writing temp output: %w", err)
@@ -233,11 +302,4 @@ func countRules(data []byte) int {
 	}
 
 	return rules
-}
-
-func (p *BlocklistProcessor) logMetrics(ctx context.Context) {
-	slog.LogAttrs(ctx, slog.LevelInfo, "run metrics",
-		slog.Int64("blocklists_processed", p.metrics.blocklistsProcessed.Load()),
-		slog.Int64("transformations_total", p.metrics.transformationsTotal.Load()),
-		slog.Int64("transformations_us", p.metrics.transformationsTime.Load()))
 }
